@@ -61,7 +61,7 @@ resource "google_dns_managed_zone" "private_zone" {
   dns_name    = "internal.${var.environment}."
   description = "Private DNS zone for internal services"
   labels      = var.labels
-  
+
   visibility = "private"
 
   private_visibility_config {
