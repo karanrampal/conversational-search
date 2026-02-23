@@ -1,0 +1,8 @@
+config:
+  replicationFactor: 3
+
+resources:
+  limits:
+    memory: 2Gi
+  requests:
+    memory: 2Gi

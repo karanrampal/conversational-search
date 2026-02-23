@@ -1,0 +1,27 @@
+image:
+  repository: europe-west1-docker.pkg.dev/hm-contextual-search-f3d5/llm-ar-dev/conversational-search
+  tag: "latest"
+  pullPolicy: Always
+
+serviceAccountName: "etl-job-sa"
+maxRetries: 3
+
+env:
+  secretName: "qdrant-apikey"
+  secretKey: "api-key"
+  qdrantHost: "qdrant"
+  tlsSecretName: "qdrant-tls-secret"
+
+config:
+  batchSize: 512
+  vectorSize: 1408
+  configFile: "configs/config.yaml"
+  replicationFactor: 2
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 1Gi
+  requests:
+    cpu: 1000m
+    memory: 1Gi

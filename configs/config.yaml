@@ -1,0 +1,39 @@
+project:
+  id: "hm-contextual-search-f3d5"
+  location: "europe-west1"
+  num_queries: 6
+  country_name: United Kingdom
+
+qdrant:
+  collection_name: "articles_collection"
+  replication_factor: 2
+
+embeddings:
+  articles_table: "outfit-reco-p-7369.dbt_staging_transformations.int_articles"
+  features_table: "outfit-reco-p-7369.visual_textual_embeddings_store.int_embeddings_visual_multimodal"
+  feature_vector_size: 1408
+
+agents:
+  query_moderator:
+    model_name: "openai/gemma3:12b"  # other options "gemini-2.5-flash-lite", or "openai/gemma3:12b" if using ollama or "hosted_vllm//models" if using vllm
+    base_url: "https://gemma3-12-870381801252.europe-west1.run.app"  # if using gemini, then leave blank
+    temperature: 0.0
+    top_p: 0.5
+    thinking_budget: 0
+    max_output_tokens: 250  # should be thinking_budget + actual response tokens needed
+
+  query_expander:
+    model_name: "openai/gemma3:12b"
+    base_url: "https://gemma3-12-870381801252.europe-west1.run.app"
+    temperature: 1.0
+    top_p: 0.95
+    thinking_budget: 0
+    max_output_tokens: 250
+
+  query_router:
+    model_name: "openai/gemma3:12b"
+    base_url: "https://gemma3-12-870381801252.europe-west1.run.app"
+    temperature: 0.0
+    top_p: 0.5
+    thinking_budget: 0
+    max_output_tokens: 250

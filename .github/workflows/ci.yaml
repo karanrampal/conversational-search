@@ -1,0 +1,71 @@
+name: CI pipeline
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run_tests:
+    name: Check formatting, typing, linting and run Tests
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: "read"
+    
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    services:
+      qdrant:
+        image: qdrant/qdrant:latest
+        ports:
+          - 6333:6333
+        env:
+          QDRANT__SERVICE__API_KEY: "test-api-key"
+    
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v6
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install dependencies
+        run: make install-all
+      
+      - name: Format using Black, iSort
+        run: make format
+      
+      - name: Check typings with mypy
+        run: make typecheck
+      
+      - name: Lint with pylint
+        run: make lint
+      
+      - name: Run tests
+        shell: bash
+        env:
+          QDRANT_API_KEY: "test-api-key"
+          QDRANT_HOST: "localhost"
+          QDRANT_PORT: "6333"
+        run: make test
+      
+      - name: Sonarqube
+        uses: hm-actions/run-sonarqube-scan@v2
+        with:
+          sonar-token: ${{ secrets.SONAR_TOKEN }}
+          sonar-host-url: ${{ secrets.SONAR_HOST_URL }}

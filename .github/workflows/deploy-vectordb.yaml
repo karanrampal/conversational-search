@@ -1,0 +1,58 @@
+name: Deploy VectorDB
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'manifests/qdrant-chart/**'
+
+jobs:
+  deploy_qdrant:
+    name: Deploy Qdrant (Helm)
+    runs-on: ubuntu-latest
+    environment: ${{ (github.ref == 'refs/heads/main') && 'prod' || 'dev' }}
+    env:
+      ENVIRONMENT: ${{ (github.ref == 'refs/heads/main') && 'prod' || 'dev' }}
+
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: project-service-account@${{ vars.PROJECT_ID }}.iam.gserviceaccount.com
+
+      - id: gke-creds
+        uses: google-github-actions/get-gke-credentials@v3
+        with:
+          cluster_name: vectordb-gke-cluster-${{ env.ENVIRONMENT }}
+          location: europe-west1
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'latest'
+
+      - name: Update Helm dependencies
+        run: helm dependency update ./manifests/qdrant-chart
+
+      - name: Deploy Qdrant Chart
+        run: |
+          helm upgrade --install qdrant ./manifests/qdrant-chart \
+            --namespace qdrant \
+            --values ./manifests/qdrant-chart/values-${{ env.ENVIRONMENT }}.yaml \
+            --set qdrant.apiKey=${{ secrets.QDRANT_API_KEY }} \
+            --timeout 10m \
+            --history-max 1 \
+            --wait

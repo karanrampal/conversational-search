@@ -1,0 +1,18 @@
+{{- if .Values.psc.enabled -}}
+apiVersion: networking.gke.io/v1
+kind: ServiceAttachment
+metadata:
+  name: {{ .Values.psc.name | default (printf "%s-psc" .Values.ilb.name) }}
+  annotations:
+    {{- toYaml .Values.psc.annotations | nindent 4 }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.qdrant.nameOverride | default "qdrant" }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  connectionPreference: ACCEPT_AUTOMATIC
+  natSubnets:
+  - {{ .Values.psc.natSubnetName }}
+  resourceRef:
+    kind: Service
+    name: {{ .Values.ilb.name }}
+{{- end -}}

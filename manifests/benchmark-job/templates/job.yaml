@@ -1,0 +1,60 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ .Values.maxRetries }}
+  ttlSecondsAfterFinished: {{ .Values.ttlSecondsAfterFinished }}
+  activeDeadlineSeconds: 7200
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName }}
+      enableServiceLinks: false
+      containers:
+        - name: benchmark-container
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "src/benchmark_vdb.py", "--benchmark"]
+          args:
+            - "--config"
+            - {{ .Values.config.configFile | quote }}
+            - "--runs"
+            - {{ .Values.config.runs | quote }}
+            - "--warmup"
+            - {{ .Values.config.warmup | quote }}
+            - "--concurrency"
+            - {{ .Values.config.concurrency | quote }}
+            {{- if .Values.config.syntheticQuery }}
+            - "--synthetic-query"
+            {{- end }}
+          env:
+            - name: QDRANT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.env.secretName }}
+                  key: {{ .Values.env.secretKey }}
+            - name: QDRANT_HOST
+              value: {{ .Values.env.qdrantHost | quote }}
+            - name: QDRANT_HTTPS
+              value: "false"
+            - name: QDRANT_CA_CERT
+              value: "/etc/ssl/certs/qdrant/ca.pem"
+          volumeMounts:
+            - name: qdrant-tls
+              mountPath: "/etc/ssl/certs/qdrant"
+              readOnly: true
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: qdrant-tls
+          secret:
+            secretName: {{ .Values.env.tlsSecretName }}
+      restartPolicy: OnFailure

@@ -1,0 +1,21 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  id: build
+  args: 
+    - build
+    - --tag=${_IMAGE}
+    - -f
+    - ${_DOCKERFILE}
+    - .
+
+images: ["${_IMAGE}"]
+
+substitutions:  
+  _LOCATION: 'europe-west1'
+  _REGISTRY: 'llm-ar-dev'
+  _IMAGE: '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REGISTRY}/open-llms:latest'
+  _DOCKERFILE: 'docker/vllm/Dockerfile'
+
+options:
+  dynamicSubstitutions: true
+  machineType: "E2_HIGHCPU_32"

@@ -1,0 +1,32 @@
+{{- if .Values.ilb.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.ilb.name }}
+  annotations:
+    {{- toYaml .Values.ilb.annotations | nindent 4 }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.qdrant.nameOverride | default "qdrant" }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: LoadBalancer
+  {{- if .Values.ilb.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.ilb.loadBalancerIP }}
+  {{- end }}
+  {{- if .Values.ilb.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml .Values.ilb.loadBalancerSourceRanges | nindent 4 }}
+  {{- end }}
+  ports:
+  - name: http
+    port: {{ .Values.qdrant.service.port }}
+    protocol: TCP
+    targetPort: {{ .Values.qdrant.service.port }}
+  - name: grpc
+    port: 6334
+    protocol: TCP
+    targetPort: 6334
+  selector:
+    app.kubernetes.io/name: {{ .Values.qdrant.nameOverride | default "qdrant" }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}

@@ -1,0 +1,84 @@
+name: CD Pipeline
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy_infra:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+
+    environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+    env:
+      ENVIRONMENT: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+      TF_VAR_qdrant_api_key: ${{ secrets.QDRANT_API_KEY }}
+    
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Deploy Infrastructure
+        uses: ./.github/actions/infra
+        with:
+          project_id: ${{ vars.PROJECT_ID }}
+          environment: ${{ env.ENVIRONMENT }}
+          region: 'europe-west1'
+          action: 'apply'
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: project-service-account@${{ vars.PROJECT_ID }}.iam.gserviceaccount.com
+
+  build_and_push:
+    name: Build & Push Docker Image
+    needs: [deploy_infra]
+    runs-on: ubuntu-latest
+
+    environment: ${{ (github.ref == 'refs/heads/main') && 'prod' || 'dev' }}
+    env:
+      ENVIRONMENT: ${{ (github.ref == 'refs/heads/main') && 'prod' || 'dev' }}
+
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: project-service-account@${{ vars.PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Login to Artifact Registry
+        uses: docker/login-action@v3
+        with:
+          registry: europe-west1-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            europe-west1-docker.pkg.dev/${{ vars.PROJECT_ID }}/llm-ar-${{ env.ENVIRONMENT }}/conversational-search:${{ github.sha }}
+            europe-west1-docker.pkg.dev/${{ vars.PROJECT_ID }}/llm-ar-${{ env.ENVIRONMENT }}/conversational-search:latest

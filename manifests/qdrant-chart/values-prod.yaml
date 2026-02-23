@@ -1,0 +1,2 @@
+qdrant:
+  replicaCount: 3

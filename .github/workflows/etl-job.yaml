@@ -1,0 +1,87 @@
+name: ETL Job
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment (dev/prod)'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+      timeout:
+        description: 'Helm Timeout (e.g. 60m, 1h)'
+        required: false
+        default: '60m'
+        type: string
+  schedule:
+    - cron: "0 2 * * *"  # Runs daily at 2 AM UTC
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      environments: ${{ steps.set-matrix.outputs.environments }}
+    steps:
+      - id: set-matrix
+        run: |
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            echo "environments=[\"dev\",\"prod\"]" >> "$GITHUB_OUTPUT"
+          else
+            echo "environments=[\"${{ inputs.environment }}\"]" >> "$GITHUB_OUTPUT"
+          fi
+
+  etl_job:
+    needs: setup
+    strategy:
+      matrix:
+        environment: ${{ fromJson(needs.setup.outputs.environments) }}
+      fail-fast: false
+    name: ETL Job ${{ matrix.environment }}
+    runs-on: ubuntu-latest
+
+    environment: ${{ matrix.environment }}
+    env:
+      ENVIRONMENT: ${{ matrix.environment }}
+
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: project-service-account@${{ vars.PROJECT_ID }}.iam.gserviceaccount.com
+
+      - id: gke-creds
+        uses: google-github-actions/get-gke-credentials@v3
+        with:
+          cluster_name: vectordb-gke-cluster-${{ env.ENVIRONMENT }}
+          location: europe-west1
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'latest'
+
+      - name: Run ETL Job Helm Chart
+        run: |
+          helm upgrade --install etl ./manifests/etl-job \
+            --namespace qdrant \
+            --values ./manifests/etl-job/values-${{ env.ENVIRONMENT }}.yaml \
+            --timeout ${{ inputs.timeout || '60m' }} \
+            --history-max 1 \
+            --wait
