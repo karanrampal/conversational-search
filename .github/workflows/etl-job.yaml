@@ -16,8 +16,8 @@ on:
         required: false
         default: '60m'
         type: string
-  schedule:
-    - cron: "0 2 * * *"  # Runs daily at 2 AM UTC
+  #schedule:
+  #  - cron: "0 2 * * *"  # Runs daily at 2 AM UTC
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
